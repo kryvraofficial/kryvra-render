@@ -7,6 +7,10 @@ on:
         description: "Parallel scene workers"
         required: false
         default: "4"
+      seconds:
+        description: "Compress to N seconds (0 = full length)"
+        required: false
+        default: "0"
 
 jobs:
   render:
@@ -23,15 +27,20 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          sudo apt-get install -y -qq ffmpeg libcairo2
           python -m pip install --upgrade pip
-          pip install "pillow>=10" edge-tts
+          pip install "pillow>=10" edge-tts cairosvg
+
+      - name: Prefetch icons
+        run: python icons.py
 
       - name: Render with voiceover
         env:
           WORKERS: ${{ github.event.inputs.workers || '4' }}
+          SECONDS_MAX: ${{ github.event.inputs.seconds || '0' }}
         run: |
-          python globalization.py --out out/globalization.mp4 --workers "$WORKERS"
+          python globalization.py --out out/globalization.mp4 \
+            --workers "$WORKERS" --max-seconds "$SECONDS_MAX"
 
       - name: Show result
         run: |

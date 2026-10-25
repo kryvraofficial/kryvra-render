@@ -330,6 +330,22 @@ def scene_trust(t, dur, d, img):
 
 SCENE_FN = [scene_barter, scene_unit, scene_distance, scene_growth, scene_trust]
 
+try:
+    import icons as ICONS
+except Exception as _e:  # no cairosvg / no network: render text-only
+    ICONS = None
+    print("icons disabled:", _e)
+
+# (name, cx, cy, size) in 1080-wide design units, scaled by k at draw time
+ICON_LAYOUT = {
+    0: [("wheat", 300, 880, 130), ("shirt", 780, 880, 130), ("handshake", 540, 1260, 150)],
+    1: [("coins", 540, 940, 120)],
+    2: [("ship", 250, 800, 70), ("truck", 820, 730, 70), ("anchor", 330, 1090, 70),
+        ("package", 760, 1060, 70), ("factory", 540, 690, 70)],
+    3: [("trending-up", 830, 700, 110)],
+    4: [("globe", 540, 950, 250), ("handshake", 540, 1250, 100)],
+}
+
 
 def render_scene(args):
     idx, frames, path = args
@@ -352,6 +368,14 @@ def render_scene(args):
         d = ImageDraw.Draw(img, "RGBA")
 
         img, d = fn(t, dur, d, img)
+
+        # ---- icons (fade in with the scene, after the geometry lands)
+        if ICONS is not None:
+            icon_p = ease_out(seg(t, 0.35, 0.5))
+            for name, ix, iy, isize in ICON_LAYOUT.get(idx, []):
+                img = ICONS.paste_icon(img, name, ix * k, iy * k, max(8, int(isize * k)),
+                                       color=INK, opacity=max(0.0, min(1.0, icon_p)))
+            d = ImageDraw.Draw(img, "RGBA")
 
         # ---- header + caption (inside vertical safe zone)
         f_lab = font(True, int(26 * W / 1080))
@@ -403,6 +427,8 @@ def main():
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 1)))
     ap.add_argument("--work", default="build")
     ap.add_argument("--skip-vo", action="store_true")
+    ap.add_argument("--max-seconds", type=float, default=0.0,
+                    help="Compress the timeline to at most N seconds (test renders)")
     a = ap.parse_args()
 
     os.makedirs(a.work, exist_ok=True)
@@ -411,6 +437,14 @@ def main():
     vo_files = synth_vo(os.path.join(a.work, "vo"))
     durs = [ffprobe_dur(p) for p in vo_files]
     frames = [max(int(FPS * 2.2), int(round((d + PAD) * FPS))) for d in durs]
+
+    speed = 1.0
+    raw_total = sum(frames) / FPS
+    if a.max_seconds and raw_total > a.max_seconds:
+        speed = raw_total / a.max_seconds
+        frames = [max(2, int(round(f / speed))) for f in frames]
+        print(f"compressing {raw_total:.1f}s -> {a.max_seconds:.1f}s (speed x{speed:.2f})")
+
     total = sum(frames)
     print("VO durations:", [round(d, 2) for d in durs])
     print(f"scenes frames={frames} total={total} ({total / FPS:.1f}s)")
@@ -438,7 +472,11 @@ def main():
     t_cursor = 0.0
     for i, p in enumerate(vo_files):
         inputs += ["-i", p]
-        filters.append(f"[{i}:a]adelay={int(t_cursor * 1000)}|{int(t_cursor * 1000)}[a{i}]")
+        if speed != 1.0:
+            filters.append(f"[{i}:a]atempo={min(2.0, speed):.4f}[s{i}]")
+        else:
+            filters.append(f"[{i}:a]anull[s{i}]")
+        filters.append(f"[s{i}]adelay={int(t_cursor * 1000)}|{int(t_cursor * 1000)}[a{i}]")
         pieces.append(f"[a{i}]")
         t_cursor += frames[i] / FPS
     fc = ";".join(filters) + ";" + "".join(pieces) + f"amix=inputs={len(pieces)}:normalize=0[aout]"
