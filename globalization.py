@@ -227,10 +227,6 @@ def scene_barter(t, dur, d, img):
         img = glass_panel(img, left)
         img = glass_panel(img, right)
         d = ImageDraw.Draw(img, "RGBA")
-        d.rounded_rectangle([left[0] + 60 * k, left[1] + 70 * k, left[2] - 60 * k, left[3] - 70 * k],
-                            radius=12, outline=MUTED, width=3)
-        d.ellipse([right[0] + 60 * k, right[1] + 70 * k, right[2] - 60 * k, right[3] - 70 * k],
-                  outline=MUTED, width=3)
     # the swap that fails: two arrows, one stops short
     draw_arrow(d, 460 * k, 830 * k, 640 * k, 830 * k, seg(t, 0.9, 0.7), TERRA)
     draw_arrow(d, 640 * k, 950 * k, 520 * k, 950 * k, seg(t, 1.5, 0.7), MUTED)
@@ -338,7 +334,7 @@ except Exception as _e:  # no cairosvg / no network: render text-only
 
 # (name, cx, cy, size) in 1080-wide design units, scaled by k at draw time
 ICON_LAYOUT = {
-    0: [("wheat", 300, 880, 130), ("shirt", 780, 880, 130), ("handshake", 540, 1260, 150)],
+    0: [("wheat", 300, 880, 130), ("shirt", 780, 880, 130), ("handshake", 540, 1120, 130)],
     1: [("coins", 540, 940, 120)],
     2: [("ship", 250, 800, 70), ("truck", 820, 730, 70), ("anchor", 330, 1090, 70),
         ("package", 760, 1060, 70), ("factory", 540, 690, 70)],
@@ -371,9 +367,10 @@ def render_scene(args):
 
         # ---- icons (fade in with the scene, after the geometry lands)
         if ICONS is not None:
+            ik = W / 1080.0  # local: `k` is defined later in this function
             icon_p = ease_out(seg(t, 0.35, 0.5))
             for name, ix, iy, isize in ICON_LAYOUT.get(idx, []):
-                img = ICONS.paste_icon(img, name, ix * k, iy * k, max(8, int(isize * k)),
+                img = ICONS.paste_icon(img, name, ix * ik, iy * ik, max(8, int(isize * ik)),
                                        color=INK, opacity=max(0.0, min(1.0, icon_p)))
             d = ImageDraw.Draw(img, "RGBA")
 
