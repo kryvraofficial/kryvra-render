@@ -1,0 +1,47 @@
+name: globalization
+
+on:
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: "Parallel scene workers"
+        required: false
+        default: "4"
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --upgrade pip
+          pip install "pillow>=10" edge-tts
+
+      - name: Render with voiceover
+        env:
+          WORKERS: ${{ github.event.inputs.workers || '4' }}
+        run: |
+          python globalization.py --out out/globalization.mp4 --workers "$WORKERS"
+
+      - name: Show result
+        run: |
+          ls -lh out/
+          ffprobe -v error -show_entries format=duration,size:stream=width,height,nb_frames \
+            -of default=nw=1 out/globalization.mp4
+
+      - name: Upload MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: globalization-video
+          path: out/globalization.mp4
+          retention-days: 14
